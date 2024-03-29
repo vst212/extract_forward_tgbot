@@ -20,7 +20,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import error
 
 from process_images import add_text, merge_multi_images, generate_gif, open_image_from_various, merge_images_according_array
-from process_video import video2gif114tg
+from process_video import save_video_from_various, video2gif
 from preprocess import config, io4message, io4push
 from Transmit import backup_file
 
@@ -172,11 +172,11 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if check_file_in_size(file_size, config.video_max_size):   # 文件太大，则不处理
                 # 得到视频 URL
                 the_file = await bot.get_file(file_id)
-                video_dir_list = [the_file.file_path]
                 # 转换成 gif
-                gif_io, video_local_path = await video2gif114tg(video_dir_list, config.store_dir, (message.video.width, message.video.height), max_width=config.gif_max_width)
+                video_local_path = await save_video_from_various(the_file.file_path, config.store_dir)
+                gif_io, gif_path = await video2gif(video_local_path, config.store_dir, (message.video.width, message.video.height), max_width=config.gif_max_width)
                 video_name = file_unique_id + ".gif"
-                await send_gif_file(gif_io, video_name, user_id, context, [video_local_path])
+                await send_gif_file(gif_io, video_name, user_id, context, del_file_list=[video_local_path, gif_path])
             else:
                 await context.bot.send_message(chat_id=update.effective_chat.id, text="文件太大")
                 return
@@ -201,11 +201,11 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if check_file_in_size(file_size, config.video_max_size):
                     # 得到视频 URL
                     the_file = await bot.get_file(file_id)
-                    video_dir_list = [the_file.file_path]
                     # 转换成 gif
-                    gif_io, video_local_path = await video2gif114tg(video_dir_list, config.store_dir, (message.video.width, message.video.height), max_width=config.gif_max_width)
+                    video_local_path = await save_video_from_various(the_file.file_path, config.store_dir)
+                    gif_io, gif_path = await video2gif(video_local_path, config.store_dir, (message.video.width, message.video.height), max_width=config.gif_max_width)
                     video_name = file_unique_id + ".gif"
-                    await send_gif_file(gif_io, video_name, user_id, context, [video_local_path])
+                    await send_gif_file(gif_io, video_name, user_id, context, del_file_list=[video_local_path, gif_path])
                 else:
                     await context.bot.send_message(chat_id=update.effective_chat.id, text="文件太大")
                     return

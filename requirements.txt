@@ -4,3 +4,4 @@ numpy
 ruamel.yaml
 requests
 beautifulsoup4
+aiofiles
