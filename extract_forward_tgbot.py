@@ -17,43 +17,23 @@ from multi import set_config
 if __name__ == '__main__':
     application = ApplicationBuilder().token(preprocess.config.bot_token).build()
 
-    # 类似路由，接收到 /start 执行哪个函数，
-    start_handler = CommandHandler('start', start)
-    # 转存
-    transfer_handler = MessageHandler((~filters.COMMAND), transfer)
     # 处理含图片的
     # image_process_handler = MessageHandler(filters.PHOTO, image_process)
-    # 处理图片
-    image_get_handler = CommandHandler('image', image_get)
-    # 确认删除转存内容
-    sure_clear_handler = CommandHandler('clear', sure_clear)
-    # 推送到
-    push_handler = CommandHandler('push', push)
-    # 显示最早的一条信息
-    earliest_msg_handler = CommandHandler('emsg', earliest_msg)
-    # 删除最新的一条信息
-    delete_msg_handler = CommandHandler('dmsg', delete_last_msg)
-    # 设置参数，如网址路径
-    set_config_handler = CommandHandler('set', set_config)
-    # 重载配置文件
-    reload_handler = CommandHandler('reload', reload_config)
-    # 停止机器人
-    shutdown_handler = CommandHandler('shutdown', shutdown)
-
+    
     # 注册 start_handler ，以便调度
-    application.add_handler(start_handler)
-    application.add_handler(transfer_handler)
-    application.add_handler(image_get_handler)
-    application.add_handler(sure_clear_handler)
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler((~filters.COMMAND), transfer))   # 转存
+    application.add_handler(CommandHandler('image', image_get))    # 处理图片
+    application.add_handler(CommandHandler('clear', sure_clear))   # 确认删除转存内容
     # 删除转存内容 或回复不删
     application.add_handler(CallbackQueryHandler(clear))
 
-    application.add_handler(push_handler)
-    application.add_handler(earliest_msg_handler)
-    application.add_handler(delete_msg_handler)
-    application.add_handler(set_config_handler)
-    application.add_handler(reload_handler)
-    application.add_handler(shutdown_handler)
+    application.add_handler(CommandHandler('push', push))   # 推送到
+    application.add_handler(CommandHandler('emsg', earliest_msg))   # 显示最早的一条信息
+    application.add_handler(CommandHandler('dmsg', delete_last_msg))   # 删除最新的一条信息
+    application.add_handler(CommandHandler('set', set_config))   # 设置参数，如网址路径
+    application.add_handler(CommandHandler('reload', reload_config))   # 重载配置文件
+    application.add_handler(CommandHandler('shutdown', shutdown))   # 停止机器人
 
     # 未知命令回复。必须放到最后，会先判断前面的命令，都不是才会执行这个
     unknown_handler = MessageHandler(filters.COMMAND, unknown)

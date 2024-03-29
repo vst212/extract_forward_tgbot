@@ -1,5 +1,6 @@
 import io, os
 from collections import OrderedDict
+import asyncio
 
 from urllib.parse import urlparse
 import httpx
@@ -12,7 +13,24 @@ import numpy as np
 """
 
 
-async def open_image_from_various(image_dir_list, cache=None):
+async def open_image_async(image_file):
+    """用异步打开单个图片"""
+    loop = asyncio.get_event_loop()
+    # 使用默认的线程池执行器
+    print(f"start to open file {image_file}")
+    image = await loop.run_in_executor(None, Image.open, image_file)
+    print(f"finish to open file {image_file}")
+    return image
+
+async def download_image(url):
+    print(f"start to download file {url}")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        image_data = Image.open(io.BytesIO(response.content))
+        print(f"{url} has been downloaded")
+        return image_data
+
+async def open_image_from_various(image_dir_list: list, cache=None) -> list:
     """
     根据传入图片路径的不同，如本地路径，网络路径，使用不同方式打开图片，并返回 Image 列表
     由于这个函数现在是异步的，所以需要使用await关键字来调用它。
@@ -25,31 +43,27 @@ async def open_image_from_various(image_dir_list, cache=None):
         cache = OrderedDict()
 
     if os.path.exists(path):
-        return [Image.open(image_file) for image_file in image_dir_list]
+        # 使用 asyncio.gather 来并发打开多个图片
+        return await asyncio.gather(*(open_image_async(image_file) for image_file in image_dir_list))
     elif urlparse(path).scheme in ('http', 'https'):
-        img_list = []
-        for url in image_dir_list:
-            base_name = urlparse(url).path.split("/")[-1]
-            # 检查缓存中是否存在图片数据
-            if base_name in cache:
-                img_list.append(cache[base_name])
-                print(f"{base_name} is in cache")
-            else:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url)
-                    image_data = Image.open(io.BytesIO(response.content))
-                    img_list.append(image_data)
-                    print(f"{url} has been downloaded, and will be added in cache")
-
-                    # 添加图片数据到缓存
-                    cache[base_name] = image_data
-                    # 删除最旧的键值对，如果缓存超过了20条
-                    if len(cache) > 20:
-                        cache.popitem(last=False)
+        # 获取文件名
+        base_names = [urlparse(url).path.split("/")[-1] for url in image_dir_list]
+        # 将缓存中没有的图片地址分离出
+        need_downloads = [(base_name, url) for base_name, url in zip(base_names, image_dir_list) if base_name not in cache]
+        # 并发下载所有图片
+        new_downloads = await asyncio.gather(*(download_image(url) for _, url in need_downloads))
+        # 添加图片数据到缓存
+        for (base_name, _), image_data in zip(need_downloads, new_downloads):
+            cache[base_name] = image_data
+        # 组合本次需要的图片
+        img_list = [cache[base_name] for base_name in base_names]
+        # 删除最旧的键值对，如果缓存超过了50条
+        while(len(cache) > 50):
+            cache.popitem(last=False)
         return img_list
     else:
-        print("Unknown")
-        return "Unknown"
+        print("Unknown image_dir")
+        return []
 
 
 def split_text(text, font_size, max_width):
@@ -97,7 +111,7 @@ def add_text(image_list, text="文字示例", font_type='simsun.ttc', font_size=
     n = len(lines_text)
     background_height = font_size * n + (text_intervene_interval - 4) * (n - 1) + 2 * text_interval
 
-    # 创建纯白背景图
+    # 创建纯白背景图，下面那条放文字的
     background = Image.new('RGB', (image.width, background_height), (255, 255, 255))
 
     # 合二为一

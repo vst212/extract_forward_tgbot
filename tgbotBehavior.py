@@ -11,6 +11,7 @@ import json
 import subprocess
 import ast
 import zipfile
+import asyncio
 
 from telegram import Update, Bot
 from telegram.ext import ContextTypes
@@ -222,6 +223,7 @@ async def image_get(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user_id = update.effective_chat.id
     userid_str = str(user_id)
+    loop = asyncio.get_event_loop()
 
     # 都是 作为 key，合成图片的参数
     userid_time_str = userid_str + "_time"
