@@ -12,6 +12,7 @@ import subprocess
 import ast
 import zipfile
 import asyncio
+from concurrent.futures import ProcessPoolExecutor
 
 from telegram import Update, Bot
 from telegram.ext import ContextTypes
@@ -124,7 +125,7 @@ async def send_gif_file(fileIO: io.BytesIO, file_name: str, user_id: int, contex
         with open(temp_zipfile, 'rb') as zip_file:
             await context.bot.send_document(chat_id=user_id, document=zip_file, filename=zip_name)
     except error.TimedOut:
-        await context.bot.send_message(chat_id=user_id, text="网络原因，未能成功发送，请重新 /image")
+        await context.bot.send_message(chat_id=user_id, text="网络超时，未能成功发送，请重新 /image")
     except Exception as e:   # 由于网络不畅会引发一系列异常，光有上面那个，还不够
         print(e)
         await context.bot.send_message(chat_id=user_id, text="可能网络原因，未能成功发送，请重新 /image")
@@ -306,23 +307,24 @@ async def image_get(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         is_gif = False
         array = config.image_option.get(userid_array_str)
-        if array:   # 如果指定了排列，就按指定的
-            array_image_amount = len([i for j in array for i in j if i > 0])
-            # 还需要检查是不是从 1 递增的
-            if not image_amount == array_image_amount:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f"排列数组里的图片数 {array_image_amount} 与实际图片数 {image_amount} 不一致，请检查")
-            # 若数量一致，可调用函数处理
-            gif_io = merge_images_according_array(img_list, middle_interval, array)
-            config.image_option[userid_array_str] = None
-        else:   # 根据图片数量，默认的行为
-            if image_amount == 1:
-                gif_io = add_text(img_list, text)
-            elif 1 < image_amount < 5:
-                gif_io = merge_multi_images(img_list, middle_interval)
-            else:   # 超过 4 个，GIF
-                is_gif = True
-                gif_io = generate_gif(img_list, duration_time)
+        with ProcessPoolExecutor() as pool:
+            if array:   # 如果指定了排列，就按指定的
+                array_image_amount = len([i for j in array for i in j if i > 0])
+                # 还需要检查是不是从 1 递增的
+                if not image_amount == array_image_amount:
+                    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                                text=f"排列数组里的图片数 {array_image_amount} 与实际图片数 {image_amount} 不一致，请检查")
+                # 若数量一致，可调用函数处理
+                gif_io = await loop.run_in_executor(pool, merge_images_according_array, img_list, middle_interval, array)
+                config.image_option[userid_array_str] = None
+            else:   # 根据图片数量，默认的行为
+                if image_amount == 1:
+                    gif_io = await loop.run_in_executor(pool, add_text, img_list, text)
+                elif 1 < image_amount < 5:
+                    gif_io = await loop.run_in_executor(pool, merge_multi_images, img_list, middle_interval)
+                else:   # 超过 4 个，GIF
+                    is_gif = True
+                    gif_io = await loop.run_in_executor(pool, generate_gif, img_list, duration_time)
 
         config.image_list[userid_str].clear()   # 清空列表
         if is_gif:
@@ -333,7 +335,7 @@ async def image_get(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_photo(chat_id=update.effective_chat.id, photo=gif_io, filename=image_name)
             except error.TimedOut:
-                await context.bot.send_message(chat_id=update.effective_chat.id, text="网络原因，未能成功发送，请重新 /image")
+                await context.bot.send_message(chat_id=update.effective_chat.id, text="网络超时，未能成功发送，请重新 /image")
             except:   # 由于网络不畅会引发一系列异常，光有上面那个，还不够
                 await context.bot.send_message(chat_id=update.effective_chat.id, text="网络原因，未能成功发送，请重新 /image")
             else:
@@ -342,9 +344,6 @@ async def image_get(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="no image left")
 
-
-async def image_process(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pass
 
 
 # 执行命令，输入 bash 中的命令 command2exec 和要传输的数据 data

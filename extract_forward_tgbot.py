@@ -17,9 +17,6 @@ from multi import set_config
 if __name__ == '__main__':
     application = ApplicationBuilder().token(preprocess.config.bot_token).build()
 
-    # 处理含图片的
-    # image_process_handler = MessageHandler(filters.PHOTO, image_process)
-    
     # 注册 start_handler ，以便调度
     application.add_handler(CommandHandler('start', start))
     application.add_handler(MessageHandler((~filters.COMMAND), transfer))   # 转存
