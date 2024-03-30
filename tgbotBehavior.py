@@ -43,17 +43,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-def general_logic(update: Update, store_file: str, line_center_content: str) -> str:
+def general_logic(update: Update, store_file: str, line_center_content: str, media_group_id_cache = ["0"]) -> str:
     """通用规则：先提取文本，再把内联网址按顺序列在后面"""
     link = ['']
-
+    
     # 提取内容
     if content := update.message.text:
         search_link = update.message.entities
     elif content := update.message.caption:
         search_link = update.message.caption_entities
+        media_group_id_cache[0] = update.message.media_group_id
     else:
-        return "not support. 不支持这种消息"
+        media_group_id = update.message.media_group_id
+        if media_group_id in media_group_id_cache:
+            # 同一组的图片，不提示错误
+            return ""
+        else:
+            return "not support. 不支持这种消息"
     # 提取内联网址
     for i in search_link:
         link.append(i.url)
@@ -163,9 +169,11 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     bot = Bot(token=config.bot_token)   # 用于得到文件 URL
     if from_where == "yourself" or from_where_bot:   # 自己发的，肯定是文字就是文字，图片就是图片，有就代表要用那方面的功能，不需要再判断
-        if message.photo:   # 如果发送的是图片
+        if message.photo:
+            # 如果发送的是图片
             save_data_of_photos(message, userid_str)
-        elif message.video:   # 如果发送的是视频
+        elif message.video:
+            # 如果发送的是视频
             file_id = message.video.file_id                     # 一定能复用
             file_unique_id = message.video.file_unique_id
             file_size = message.video.file_size
@@ -180,21 +188,20 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await context.bot.send_message(chat_id=update.effective_chat.id, text="文件太大")
                 return
-        else:   # 通用规则
+        else:
+            # 通用规则
             respond = general_logic(update, store_file, line_center_content)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
+            if respond:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
     # 不是自己发的，先根据频道分类，再在频道里细分，调用函数处理
     else:
         channel_name = message.forward_from_chat.username
         # 对于转发自指定频道的消息进行特殊处理
-        if channel_name in config.only_url_channel:   # 只提取网址
-            url = extract_urls(update=update)
-            io4message.write_behind(store_file + '_url' + '.txt', '\n'.join(filter(None, url)) + '\n')
-            await context.bot.send_message(chat_id=update.effective_chat.id, text='url saved.')
-        elif channel_name in config.image_channel:   # 处理图片的逻辑(若想转存这些频道里的内容，只能手动复制)
-            if message.photo:   # 如果发送的是图片
+        if channel_name in config.image_channel:
+            # 处理图片和视频的逻辑(若想转存这些频道里带图片的文字，只能手动复制，纯文本可以直接保存)
+            if message.photo:
                 save_data_of_photos(message, userid_str)
-            elif message.video:   # 如果发送的是视频
+            elif message.video:
                 file_id = message.video.file_id
                 file_unique_id = message.video.file_unique_id
                 file_size = message.video.file_size
@@ -209,12 +216,19 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await context.bot.send_message(chat_id=update.effective_chat.id, text="文件太大")
                     return
-            else:   # 通用规则
+            else:
                 respond = general_logic(update, store_file, line_center_content)
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
-        else:   # 通用规则
+                if respond:
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
+        elif channel_name in config.only_url_channel:
+            # 只提取网址
+            url = extract_urls(update=update)
+            io4message.write_behind(store_file + '_url' + '.txt', '\n'.join(filter(None, url)) + '\n')
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='url saved.')
+        else:
             respond = general_logic(update, store_file, line_center_content)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
+            if respond:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
 
 
 async def image_get(update: Update, context: ContextTypes.DEFAULT_TYPE):
