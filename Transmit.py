@@ -10,7 +10,7 @@ from pymongo import MongoClient
 
 class LocalReadWrite:
     """读取和保存到本地文件"""
-    def __init__(self, rootpath_of_store: str, suffix: str):
+    def __init__(self, rootpath_of_store: str, suffix: str=""):
         self.rootpath = rootpath_of_store
         self.suffix = suffix
 
