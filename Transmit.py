@@ -215,10 +215,12 @@ if __name__ == "__main__":
     from configHandle import Config
 
     config = Config("./config.yaml")
+
+    # 测试 MongoDBReadWrite 功能
     uri = config.mongo_uri
     db_name = config.mongo_db
     collection_name = config.mongo_collection
-    user_id = config.chat_id
+    user_id = "1111111111"
 
     mongodb_rw = MongoDBReadWrite(uri, db_name, collection_name, field="forward")
 
