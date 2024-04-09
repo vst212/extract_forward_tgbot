@@ -379,13 +379,12 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
 	    # 推送
         push2somewhere = config.push_dir + netstr   # 为用户分配路径
         if os.path.exists(config.push_dir):   # 若是本地目录
-            io4message.write(push2somewhere, all_stored)
+            io4push.append(netstr, all_stored)
             where2see = config.domain + netstr
         elif urlparse(config.push_dir).scheme in ('http', 'https'):   # 若是网址路径
             io4push.write(push2somewhere, all_stored)
             where2see = push2somewhere
         else:
-            print("配置文件中，push_dir 填写有误")
             await context.bot.send_message(chat_id=config.chat_id, text="配置文件中，push_dir 填写有误")
             return
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"push done. "

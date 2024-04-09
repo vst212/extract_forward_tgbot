@@ -1,4 +1,6 @@
 # config.py
+import os
+from urllib.parse import urlparse
 import logging
 import argparse
 
@@ -25,7 +27,11 @@ if config.mongo_uri:
 else:
     io4message = LocalReadWrite(rootpath_of_store=config.store_dir, suffix=".txt")
     io4urlmsg = LocalReadWrite(rootpath_of_store=config.store_dir, suffix="_url.txt")
-io4push = WebnoteReadWrite()
+
+if os.path.exists(config.push_dir):   # 若是本地目录
+    io4push = LocalReadWrite(rootpath_of_store=config.push_dir)
+elif urlparse(config.push_dir).scheme in ('http', 'https'):   # 若是网址路径
+    io4push = WebnoteReadWrite()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
