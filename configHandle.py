@@ -67,3 +67,8 @@ class Config(object):
         self.process_file = configs.get('process_file', {})
         self.gif_max_width = self.process_file.get('gif_max_width', 300)   # gif 最大的宽默认取 300 像素
         self.video_max_size = self.process_file.get('video_max_size', 25)   # 接收视频的体积不能超过，默认取 25 MB，防止被刷，发个几百兆的转 GIF
+
+        # MongoDB 的相关配置
+        self.mongo_uri = configs.get('mongo_uri')
+        self.mongo_db = configs.get('mongo_db')
+        self.mongo_collection = configs.get('mongo_collection')
