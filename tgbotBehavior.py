@@ -21,19 +21,13 @@ from telegram import error
 
 from process_images import add_text, merge_multi_images, generate_gif, open_image_from_various, merge_images_according_array
 from process_video import save_video_from_various, video2gif
-from preprocess import config, io4message, io4push
+from preprocess import config, io4message, io4urlmsg, io4push
 from Transmit import backup_file
 
 
 # 回复固定内容
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
-    store_file = config.store_dir + str(user_id)
-    # 第一次聊天时预先创建两个用户数据文件，防止后续代码读取时因不存在出错
-    with open(store_file + '_url' + '.txt', 'a', encoding='utf-8'):
-        pass
-    with open(store_file + '.txt', 'a', encoding='utf-8'):
-        pass
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=f"This is extract-forward bot, 这是一个转存机器人\n\n"
                                         f"基本使用说明：\n"
@@ -43,7 +37,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-def general_logic(update: Update, store_file: str, line_center_content: str, media_group_id_cache = ["0"]) -> str:
+def general_logic(update: Update, userid_str: str, line_center_content: str, media_group_id_cache = ["0"]) -> str:
     """通用规则：先提取文本，再把内联网址按顺序列在后面"""
     link = ['']
     
@@ -68,13 +62,13 @@ def general_logic(update: Update, store_file: str, line_center_content: str, med
 
     # 仅一行且 http 开头的内容，放在 _url 中
     if content and content[0:4] == "http" and '\n' not in content:
-        io4message.write_behind(store_file + '_url' + '.txt', content + '\n')
+        io4urlmsg.append(userid_str, content + '\n')
         return "url saved. 保存网址"
     else:
         element = '\n'
         saved_content = '-' * 27 + line_center_content.center(80, '-') + '\n' + content + '\n' + element.join(filter(None, link)) + '\n\n'
         # 保存到文件中
-        io4message.write_behind(store_file + '.txt', saved_content)
+        io4message.append(userid_str, saved_content)
         return "transfer done. 转存完成"
 
 
@@ -106,7 +100,7 @@ def save_data_of_photos(message, userid_str):
     # 获得说明文字
     userid_text_str = userid_str + "_text"
     try:
-        text = update.message.caption.split("\n", 1)[0]
+        text = message.caption.split("\n", 1)[0]
         config.image_list[userid_text_str] = text
     except:
         text = False   # 失败获取会保留原来的
@@ -155,7 +149,6 @@ def check_file_in_size(file_size_in_bytes, max_in_size):
 async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     userid_str = str(user_id)
-    store_file = config.store_dir + str(user_id)
     rec_time = (str(datetime.datetime.now()))[5:-7]
 
     message = update.message
@@ -190,7 +183,7 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
         else:
             # 通用规则
-            respond = general_logic(update, store_file, line_center_content)
+            respond = general_logic(update, userid_str, line_center_content)
             if respond:
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
     # 不是自己发的，先根据频道分类，再在频道里细分，调用函数处理
@@ -217,16 +210,16 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_message(chat_id=update.effective_chat.id, text="文件太大")
                     return
             else:
-                respond = general_logic(update, store_file, line_center_content)
+                respond = general_logic(update, userid_str, line_center_content)
                 if respond:
                     await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
         elif channel_name in config.only_url_channel:
             # 只提取网址
             url = extract_urls(update=update)
-            io4message.write_behind(store_file + '_url' + '.txt', '\n'.join(filter(None, url)) + '\n')
+            io4urlmsg.append(userid_str, '\n'.join(filter(None, url)) + '\n')
             await context.bot.send_message(chat_id=update.effective_chat.id, text='url saved.')
         else:
-            respond = general_logic(update, store_file, line_center_content)
+            respond = general_logic(update, userid_str, line_center_content)
             if respond:
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
 
@@ -368,23 +361,15 @@ def exec_command(command2exec, datafile):
 
 # 推送到
 async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user_id = update.effective_chat.id   # 存有信息的文件
-    store_file = config.store_dir + str(user_id)
+    userid_str = str(user_id)
     # 随机生成 16位 的 字母和数字
     random_str = ''.join(random.sample(string.ascii_letters + string.digits, 16))
     # 配置文件或通过命令，有设置路径则取用，没有就随机
     netstr = config.netstr if config.netstr else config.path_dict.get(str(user_id), random_str)
 
     # 读取保存的
-    try:
-        stored = io4message.read(store_file + '.txt')
-        stored_url = io4message.read(store_file + '_url.txt')
-    except FileNotFoundError:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="请点一下 /start ，再尝试推送")
-        return
-
-    all_stored = stored + stored_url
+    all_stored = io4message.read(userid_str) + "\n\n" + io4urlmsg.read(userid_str)
     
     if config.push_dir:
         from urllib.parse import urlparse
@@ -447,6 +432,7 @@ async def sure_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 这个才是真实操作的删除函数，clearall 指向这个，接收按键里的信息并删除转存内容 或回复不删
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_chat.id
+    userid_str = str(user_id)
     store_file = config.store_dir + str(user_id)
     # 一个特殊的缓冲区？
     query = update.callback_query
@@ -467,43 +453,27 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # 显示最早的一条信息。标准操作，只有两种情况，全空，或者开头是 '-' * 27 ，下面也只考虑这两种情况
 # 顺便统计消息数量和网址数量
 async def earliest_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg_count = 2
-    url_count = 0
     user_id = update.effective_chat.id
-    store_file = config.store_dir + str(user_id)
-    first_message = ""
+    userid_str = str(user_id)
 
-    with open(store_file + '.txt', 'r', encoding='utf-8') as f, \
-            open(store_file + '_url.txt', 'r', encoding='utf-8') as f_url:
-        # 如果两个文件都为空
-        if not f.readline() and not f_url.readline():
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="You don't have any message. "
-                                                                                  "你没有任何数据。")
-            return 0
+    stored = io4message.read(userid_str)
+    stored_url = io4urlmsg.read(userid_str)
 
-        # 只读取第一条信息。对f的每一次读取都被记录下来了，第一行被上面读了，下面读到第二个标记，在下面统计的读的是第二个标签之后的
-        for line in f:
-            if first_message and line[0:27] == '-' * 27:
-                # 首次读会有'-' * 27，但临时字符串还没写入，没有。第二次读到'-' * 27，临时字符串前27个和这次的行前27个都是'-' * 27，这就是标志，退出循环
-                # 从几行前的注释可知，first_message可省略，也许可以改成try
-                break
-            first_message += line
-        # 统计消息数量
-        for line in f:
-            if line[0:27] == '-' * 27:
-                msg_count += 1
-        # 文件指针回到开头读首条数据时间
-        f.seek(0)
-        first_line = f.readline().strip()
-        first_date = first_line.strip('-')
+    # 如果两个都为空
+    if not (stored or stored_url):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You don't have any message. "
+                                                                                "你没有任何数据。")
+        return
 
-        # 统计网址数量，会自动跳过空行
-        for line in f_url:
-            url_count += 1
+    # 统计消息数量
+    msg_count = sum(line[0:27] == '-' * 27 for line in stored.split('\n'))
+    url_count = len(stored_url.split('\n')) - 1
+    
+    first_msg = stored.split('\n', maxsplit=1)[0].strip('-')
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=f'The number of messages you have saved is {msg_count}, and {url_count} urls.\n'
-                                        f'Here is the earliest message you saved at {first_date}\n'
+                                   text=f'The amount of messages you have saved is {msg_count}, and {url_count} urls.\n'
+                                        f'Here is the earliest message you saved at {first_msg}\n'
                                         f'保存消息的数量为 {msg_count}，保存网址的数量为 {url_count}。\n'
                                         f'最早的消息是：')
 
@@ -511,34 +481,25 @@ async def earliest_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 删除最新添加的一条会返回文本，可以实现外显链接，
 async def delete_last_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
-    store_file = config.store_dir + str(user_id) + '.txt'
-    last_message = ""
+    userid_str = str(user_id)
 
-    with open(store_file, 'r', encoding='utf-8') as f:
-        if not f.readline():
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="You don't have any message "
-                                                                                  "except for url."
-                                                                                  "你没有任何数据，可能有网址。")
-            return 0
+    stored = io4message.read(userid_str)
+    if not stored:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="You don't have any message "
+                                                                                "except for url."
+                                                                                "你没有任何数据，可能有网址。")
+        return
+    
+    stored_list = stored.split('\n')
+    i = 0
+    for line in reversed(stored_list):
+        i -= 1
+        if line[0:27] == '-' * 27:
+            break
 
-        # 先全部读取，从倒数第二行开始判断
-        f.seek(0)
-        str_list = f.readlines()
-        i = -2
-        while True:
-            if str_list[i][0:27] == '-' * 27:
-                break
-            else:
-                i -= 1
-        # 此时拿到了 最新一条消息是开头所在行，倒数的
-        # 然后切片保存到 last_lines
-        last_lines = str_list[i:-1]
-        # 要发送的消息
-        last_message = ''.join(last_lines)
-        # print(last_message)
-
-    with open(store_file, 'w', encoding='utf-8') as f:
-        f.writelines(str_list[:i])
+    last_message = '\n'.join(stored_list[i:])
+    new_stored = '\n'.join(stored_list[:i])
+    io4message._write(userid_str, new_stored)
 
     # 发送到tg
     await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Here is the last message you saved\n'

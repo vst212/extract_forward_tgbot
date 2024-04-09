@@ -35,34 +35,45 @@ def backup_file(taskfile, backup_path, append_str, clear=False):
 
 class LocalReadWrite:
     """读取和保存到本地文件"""
-    def __init__(self):
-        self.path = ''
+    def __init__(self, rootpath_of_store: str, suffix: str):
+        self.rootpath = rootpath_of_store
+        self.suffix = suffix
 
-    def read(self, path):
-        """读取原本的数据"""
-        with open(path, 'r', encoding='utf-8') as f:
-            old = f.read()
-        return old
-
-    def write(self, path, content):
-        """把数据存储"""
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-
-    def write_behind(self, path, content):
-        """把数据存储"""
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write(content)
-
-    def write_in_front(self, path, content):
-        """把文本添加到本地的一个文件里，添加在开头"""
-        old = self.read()
-        content += old
-        self.write(content)
+    def get_path(self, address) -> str:
+        return os.path.join(self.rootpath, f"{address}{self.suffix}")
     
-    def clear(self, path):
-        with open(path, 'w'):
+    def read(self, address):
+        """读取原本的数据"""
+        try:
+            with open(self.get_path(address), 'r', encoding='utf-8') as f:
+                old = f.read()
+            return old
+        except FileNotFoundError:
+            return ""
+
+    def _write(self, address, content):
+        """把数据存储"""
+        with open(self.get_path(address), 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    def append(self, address, content):
+        """追加数据"""
+        with open(self.get_path(address), 'a', encoding='utf-8') as f:
+            f.write(content)
+
+    def write_in_front(self, address, content):
+        """把文本添加到本地的一个文件里，添加在开头"""
+        old = self.read(address)
+        content += old
+        self._write(address, content)
+    
+    def clear(self, address):
+        with open(self.get_path(address), 'w'):
             pass
+
+    def del_data(self, address: str):
+        """彻底删除用户数据"""
+        os.remove(self.get_path(address))
 
 
 class WebnoteReadWrite:
@@ -97,9 +108,9 @@ class WebnoteReadWrite:
 
 class AbstractReadWrite(ABC):
     """读取和保存内容到某个地方"""
-    def __init__(self, somewhere):
+    def __init__(self, rootpath_of_store):
         """初始化存储路径的信息，和连接等"""
-        self.somewhere = somewhere
+        self.rootpath = rootpath_of_store
 
     @abstractmethod
     def read(self, address: str) -> str:
@@ -132,6 +143,11 @@ class AbstractReadWrite(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def backup(self, address: str):
+        """备份内容"""
+        raise NotImplementedError
+
+    @abstractmethod
     def del_data(self, address: str):
         """彻底删除用户数据"""
         raise NotImplementedError
@@ -155,23 +171,25 @@ class MongoDBReadWrite(AbstractReadWrite):
         user_id = address
         if row := self.collection.find_one({"user_id": user_id}):
             # 如果有该用户的数据
-            content = row[self.field]
+            content = row.get(self.field, "")
             return content
         else:
             print(f"mongo_rw return: 不存在 {user_id}")
             return ""
 
-    def _write(self, address: str, content: str):
+    def _write(self, address: str, content: str, field: str=None):
         """接收 user_id ，把数据覆盖存储"""
         user_id = address
+        field = field if field else self.field
         if self.collection.find_one({"user_id": user_id}):
             # 更新这条数据
-            data = {self.field: content}
+            data = {field: content}
             self.collection.update_one({"user_id": user_id}, {'$set': data})
         else:
             # 尚未有此用户
-            row = {"user_id": user_id, self.field: content}
+            row = {"user_id": user_id, field: content}
             self.collection.insert_one(row)
+            print(f"mongo_rw return: 已新建 {user_id}")
 
     def insert(self, address: str, insert_content: str, insertion_point: int):
         """把数据插入到指定位置，按字符计，负数则是倒着数"""
@@ -200,6 +218,12 @@ class MongoDBReadWrite(AbstractReadWrite):
         user_id = address
         self._write(user_id, "")
 
+    def backup(self, address: str):
+        """备份内容"""
+        user_id = address
+        content = self.read(user_id)
+        self._write(user_id, content, field=self.field+"_bak")
+    
     def del_data(self, address: str):
         """彻底删除用户数据"""
         self.collection.delete_one({"user_id": address})

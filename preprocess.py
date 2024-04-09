@@ -3,7 +3,7 @@ import logging
 import argparse
 
 from configHandle import Config
-from Transmit import LocalReadWrite, WebnoteReadWrite
+from Transmit import LocalReadWrite, WebnoteReadWrite, MongoDBReadWrite
 
 # 创建一个解析器
 parser = argparse.ArgumentParser(description="Your script description")
@@ -18,7 +18,13 @@ configfile = args.config
 # 定义所有变量
 config = Config(configfile)
 
-io4message = LocalReadWrite()
+if config.mongo_uri:
+    io4message = MongoDBReadWrite(uri=config.mongo_uri, db_name=config.mongo_db, collection_name=config.mongo_collection, field="forward")
+    io4urlmsg = MongoDBReadWrite(uri=config.mongo_uri, db_name=config.mongo_db, collection_name=config.mongo_collection, field="forward_url")
+    print("Use MongoDB to store")
+else:
+    io4message = LocalReadWrite(rootpath_of_store=config.store_dir, suffix=".txt")
+    io4urlmsg = LocalReadWrite(rootpath_of_store=config.store_dir, suffix="_url.txt")
 io4push = WebnoteReadWrite()
 
 logging.basicConfig(
