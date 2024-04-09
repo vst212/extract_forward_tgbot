@@ -22,7 +22,7 @@ collection = db[collection_name]
 
 # 获取目录下所有文件名（不包括子目录中的文件）
 file_names = [f for f in os.listdir(store_dir) if os.path.isfile(os.path.join(store_dir, f))]
-names_without_ext = (os.path.splitext(name)[0] for name in file_names)
+names_without_ext = (os.path.splitext(name)[0] for name in file_names if name.endswith(".txt"))
 
 data = []
 for file_name, name_without_ext in zip(file_names, names_without_ext):
@@ -30,7 +30,7 @@ for file_name, name_without_ext in zip(file_names, names_without_ext):
         with open(os.path.join(store_dir, file_name), 'r', encoding='utf-8') as f:
             stored = f.read()
         try:
-            with open(os.path.join(store_dir, file_name + "_url"), 'r', encoding='utf-8') as f:
+            with open(os.path.join(store_dir, name_without_ext + "_url.txt"), 'r', encoding='utf-8') as f:
                 stored_url = f.read()
         except FileNotFoundError:
             stored_url = ""
