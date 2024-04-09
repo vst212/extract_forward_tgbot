@@ -7,30 +7,6 @@ from bs4 import BeautifulSoup
 from pymongo import MongoClient
 
 
-def backup_file(taskfile, backup_path, append_str, clear=False):
-    """若 clear 为 true，备份后清空原文件"""
-    # 确保备份目录存在
-    os.makedirs(backup_path, exist_ok=True)
-
-    # 获取文件名和扩展名
-    filename, extension = os.path.splitext(os.path.basename(taskfile))
-
-    # 构建备份文件名
-    backup_filename = f"{filename}{append_str}{extension}"
-
-    # 构建备份文件路径
-    backup_file_path = os.path.join(backup_path, backup_filename)
-
-    try:
-        # 复制文件到备份目录
-        shutil.copy2(taskfile, backup_file_path)
-        print(f"成功将 {taskfile} 复制到 {backup_file_path}")
-    except Exception as e:
-        print(f"复制文件失败: {e}")
-    
-    if clear:
-        with open(taskfile, 'w'):
-            pass
 
 
 class LocalReadWrite:
@@ -39,8 +15,8 @@ class LocalReadWrite:
         self.rootpath = rootpath_of_store
         self.suffix = suffix
 
-    def get_path(self, address) -> str:
-        return os.path.join(self.rootpath, f"{address}{self.suffix}")
+    def get_path(self, address, bak: str="") -> str:
+        return os.path.join(self.rootpath, f"{address}{bak}{self.suffix}")
     
     def read(self, address):
         """读取原本的数据"""
@@ -51,9 +27,9 @@ class LocalReadWrite:
         except FileNotFoundError:
             return ""
 
-    def _write(self, address, content):
+    def _write(self, address, content, bak: str=""):
         """把数据存储"""
-        with open(self.get_path(address), 'w', encoding='utf-8') as f:
+        with open(self.get_path(address, bak=bak), 'w', encoding='utf-8') as f:
             f.write(content)
 
     def append(self, address, content):
@@ -70,6 +46,11 @@ class LocalReadWrite:
     def clear(self, address):
         with open(self.get_path(address), 'w'):
             pass
+
+    def backup(self, address: str):
+        """备份内容"""
+        content = self.read(address)
+        self._write(address, content)
 
     def del_data(self, address: str):
         """彻底删除用户数据"""

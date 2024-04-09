@@ -2,7 +2,6 @@
 路由和注册，以及运行
 """
 
-import sys
 import json
 
 from telegram import Update
@@ -10,7 +9,7 @@ from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHan
 
 import preprocess
 # 从 tgbotBehavior.py 导入定义机器人动作的函数
-from tgbotBehavior import start, transfer, clear, push, unknown, earliest_msg, sure_clear, delete_last_msg, image_get, shutdown, reload_config
+from tgbotBehavior import start, transfer, clear_or_delete_all_my_data, push, unknown, earliest_msg, sure_clear, delete_last_msg, image_get, shutdown, reload_config, confirm_delete
 from multi import set_config
 
 
@@ -22,8 +21,6 @@ if __name__ == '__main__':
     application.add_handler(MessageHandler((~filters.COMMAND), transfer))   # 转存
     application.add_handler(CommandHandler('image', image_get))    # 处理图片
     application.add_handler(CommandHandler('clear', sure_clear))   # 确认删除转存内容
-    # 删除转存内容 或回复不删
-    application.add_handler(CallbackQueryHandler(clear))
 
     application.add_handler(CommandHandler('push', push))   # 推送到
     application.add_handler(CommandHandler('emsg', earliest_msg))   # 显示最早的一条信息
@@ -31,6 +28,9 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('set', set_config))   # 设置参数，如网址路径
     application.add_handler(CommandHandler('reload', reload_config))   # 重载配置文件
     application.add_handler(CommandHandler('shutdown', shutdown))   # 停止机器人
+    application.add_handler(CommandHandler('delete_all_my_data', confirm_delete))   # 删除用户数据
+
+    application.add_handler(CallbackQueryHandler(clear_or_delete_all_my_data))
 
     # 未知命令回复。必须放到最后，会先判断前面的命令，都不是才会执行这个
     unknown_handler = MessageHandler(filters.COMMAND, unknown)

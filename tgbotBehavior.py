@@ -2,7 +2,7 @@
 tg机器人的所有命令行为（除了 shutdown）
 """
 import datetime
-from time import time, localtime, strftime
+from urllib.parse import urlparse
 import re
 import os, io, sys
 import random
@@ -22,7 +22,6 @@ from telegram import error
 from process_images import add_text, merge_multi_images, generate_gif, open_image_from_various, merge_images_according_array
 from process_video import save_video_from_various, video2gif
 from preprocess import config, io4message, io4urlmsg, io4push
-from Transmit import backup_file
 
 
 # 回复固定内容
@@ -371,8 +370,12 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 读取保存的
     all_stored = io4message.read(userid_str) + "\n\n" + io4urlmsg.read(userid_str)
     
+    if not all_stored.strip():
+        # 内容为空
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="nothing to push")
+        return
+    
     if config.push_dir:
-        from urllib.parse import urlparse
 	    # 推送
         push2somewhere = config.push_dir + netstr   # 为用户分配路径
         if os.path.exists(config.push_dir):   # 若是本地目录
@@ -388,12 +391,6 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"push done. "
                                                                             f"please visit {where2see}\n"
                                                                             f"推送完成，访问上面网址查看")
-    elif config.command2exec:   # 没有配置 push_dir 的话，那应该配置了外部命令
-        try:
-            exec_command(config.command2exec, all_stored)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"execute done. 执行完成")
-        except:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"fail to execute: {config.command2exec}")
     else:
         # 都没的话，就默认发到作者的网络记事本上
         push2somewhere = config.author_webnote + netstr
@@ -416,38 +413,54 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 只是询问，确认删除转存内容
 async def sure_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     inline_kb = [
         [
-            InlineKeyboardButton('sure to clear. 确认清空', callback_data=str('clearall')),
+            InlineKeyboardButton('Confirm to clear. 确认清空', callback_data=str('clearall')),
+            InlineKeyboardButton("Don't clear", callback_data=str('notclear')),
         ]
     ]
     kb_markup = InlineKeyboardMarkup(inline_kb)
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Warning! You'll clear your data.\n"
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Warning! this'll clear all you transfered.\n"
                                                                           "⚠️警告！这会清空转存的数据。",
                                    reply_markup=kb_markup)
 
 
+# 只是询问，确认删除个人全部数据
+async def confirm_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    inline_kb = [
+        [InlineKeyboardButton('I Confirm to Delete All My Data. 我确认删除个人全部数据', callback_data='confirm_delete')],
+        [InlineKeyboardButton('Cancel', callback_data='cancel_delete')]
+    ]
+    kb_markup = InlineKeyboardMarkup(inline_kb)
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Warning! this'll Delete All Your Data.\n"
+                                                                          "⚠️警告！这删除你的全部个人数据。",
+                                   reply_markup=kb_markup)
+
+
 # 这个才是真实操作的删除函数，clearall 指向这个，接收按键里的信息并删除转存内容 或回复不删
-async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def clear_or_delete_all_my_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_chat.id
     userid_str = str(user_id)
-    store_file = config.store_dir + str(user_id)
-    # 一个特殊的缓冲区？
     query = update.callback_query
     await query.answer()
 
-    t = localtime(time())
-    backup_time = strftime('%m-%d-%H-%M-%S', t)
     if query.data == 'clearall':
-        backup_file(store_file + '.txt', config.backupdir, f'_backup_{backup_time}', True)
-        backup_file(store_file + '_url.txt', config.backupdir, f'_backup_{backup_time}', True)
+        io4message.backup(userid_str)
+        io4urlmsg.backup(userid_str)
+        io4message.clear(userid_str)
+        io4urlmsg.clear(userid_str)
         await query.edit_message_text(text=f"Selected option: {query.data}, clear done. 已清空。")
     elif query.data == 'notclear':
         await query.edit_message_text(text="OK, I haven't clear yet. 放心，还没清除。")
-    else:
-        await query.edit_message_text(text="This command is not mine")
+    # 删除数据相关的
+    elif query.data == 'confirm_delete':
+        io4message.del_data(userid_str)
+        io4urlmsg.del_data(userid_str)
+        await query.edit_message_text(text=f"All Your Data Has been Deleted.")
+    elif query.data == 'cancel_delete':
+        await query.edit_message_text(text="Cancel Deleting")
 
 
 # 显示最早的一条信息。标准操作，只有两种情况，全空，或者开头是 '-' * 27 ，下面也只考虑这两种情况

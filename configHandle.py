@@ -14,7 +14,7 @@ class Config(object):
         self.configs_path = os.path.abspath(configs_path)
         self.reload()
 
-        self.author_webnote = "https://forward.vfly2.eu.org/"
+        self.author_webnote = "https://webnote.vfly2.com/"
         # 指定 JSON 文件路径
         self.json_file = 'path_dict.json'
         self.store_dir = './forward_message/'  # 存储 转存（forward）消息 的目录
