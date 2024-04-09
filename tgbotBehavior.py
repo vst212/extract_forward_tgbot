@@ -1,5 +1,5 @@
 """
-tg机器人的所有命令行为（除了 shutdown）
+tg机器人的所有命令行为
 """
 import datetime
 from urllib.parse import urlparse
@@ -152,15 +152,12 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = update.message
     # 从哪里转发的
-    from_where = message.forward_from_chat.title if message.forward_from_chat else "yourself"
-    from_where_username = message.forward_from_chat.username if message.forward_from_chat else "yourself"
-    from_where_bot = True if message.forward_from and message.forward_from.username == config.bot_username else False   # 若消息转发自机器人自己发送的，则为 True
-    message_id = message.forward_from_message_id if message.forward_from_chat else "no"
-    direct_url = "so can not being accessed directly" if from_where == "yourself" else f"  https://t.me/{from_where_username}/{message_id}"
-    line_center_content = rec_time + " from " + from_where + direct_url
+    from_yourself = False if message.forward_date else True   # 若消息是自己发送的，则为 True
+    from_bot = True if message.forward_from and message.forward_from.username == config.bot_username else False   # 若消息转发自机器人自己发送的，则为 True
 
     bot = Bot(token=config.bot_token)   # 用于得到文件 URL
-    if from_where == "yourself" or from_where_bot:   # 自己发的，肯定是文字就是文字，图片就是图片，有就代表要用那方面的功能，不需要再判断
+    if from_yourself or from_bot:   # 自己发的，肯定是文字就是文字，图片就是图片，有就代表要用那方面的功能，不需要再判断
+        line_center_content = rec_time + " from yourself or the bot"
         if message.photo:
             # 如果发送的是图片
             save_data_of_photos(message, userid_str)
@@ -185,9 +182,19 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             respond = general_logic(update, userid_str, line_center_content)
             if respond:
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=respond)
-    # 不是自己发的，先根据频道分类，再在频道里细分，调用函数处理
+    # 不是自己发的，先根据频道分类，再在频道里细分，调用函数处理。（还可能原生发送人选择隐藏）
     else:
-        channel_name = message.forward_from_chat.username
+        if chat := message.forward_from_chat:
+            channel_title = chat.title
+            channel_name = chat.username
+            message_id = message.forward_from_message_id
+            direct_url = f" https://t.me/{channel_name}/{message_id}"
+            line_center_content = rec_time + " from " + channel_title + direct_url
+        else:
+            channel_name = message.forward_sender_name if message.forward_sender_name else "not hidden_user"
+            direct_url = "this message can't be accessed directly"
+            line_center_content = rec_time + " from hidden_user" + channel_name + direct_url
+
         # 对于转发自指定频道的消息进行特殊处理
         if channel_name in config.image_channel:
             # 处理图片和视频的逻辑(若想转存这些频道里带图片的文字，只能手动复制，纯文本可以直接保存)
