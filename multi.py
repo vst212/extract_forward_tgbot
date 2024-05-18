@@ -18,20 +18,19 @@ async def set_config(update: Update, context: CallbackContext):
     user_key = str(update.effective_chat.id)   # 是 int 型
     args = context.args   # 字符串列表
 
-    not_valid = False
+    not_valid = True
     if args:
-        if len(args) == 1:
+        if len(args) == 1 and args[0] != "persistent":
             netstr = args[0]   # 取网址路径
-            if not await is_valid_str(netstr, context, update.effective_chat.id):
-                not_valid = True
+            if await is_valid_str(netstr, context, update.effective_chat.id):
+                not_valid = False
             reply = set_netstr(netstr, user_key)
         elif len(args) == 2 and args[0] == "persistent":
             persistent_webnote_url = args[1]
-            if not await is_valid_str(persistent_webnote_url, context, update.effective_chat.id):
-                not_valid = True
+            if await is_valid_str(persistent_webnote_url, context, update.effective_chat.id):
+                not_valid = False
             reply = set_persistent_webnote_url(persistent_webnote_url, user_key)
-        else:
-            not_valid = True
+
     # 如果 args 为不合格式，直接结束
     if not_valid:
         await context.bot.send_message(chat_id=update.effective_chat.id,
