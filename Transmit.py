@@ -142,7 +142,7 @@ class MongoDBReadWrite(AbstractReadWrite):
         self.field = field
         try:
             client.admin.command('ping')
-            print("Pinged your deployment. You successfully connected to MongoDB!")
+            print(f"Pinged your deployment. You successfully connected to MongoDB for field {field}!")
         except Exception as e:
             print(e)
 

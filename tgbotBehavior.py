@@ -62,13 +62,21 @@ def general_logic(update: Update, userid_str: str, line_center_content: str, med
     # 仅一行且 http 开头的内容，放在 _url 中
     if content and content[0:4] == "http" and '\n' not in content:
         io4urlmsg.append(userid_str, content + '\n')
-        return "url saved. 保存网址"
+        reply = "url saved. 保存网址"
     else:
         element = '\n'
         saved_content = '-' * 27 + line_center_content.center(80, '-') + '\n' + content + '\n' + element.join(filter(None, link)) + '\n\n'
         # 保存到文件中
         io4message.append(userid_str, saved_content)
-        return "transfer done. 转存完成"
+        reply =  "transfer done. 转存完成"
+    
+    # 同步
+    if persistent_webnote_url := config.path_dict.get(userid_str + "_psw"):
+        all_stored = io4message.read(userid_str) + "\n\n" + io4urlmsg.read(userid_str)
+        push2somewhere = config.push_dir + persistent_webnote_url
+        io4push.write(push2somewhere, all_stored)
+
+    return reply
 
 
 def extract_urls(update: Update):
