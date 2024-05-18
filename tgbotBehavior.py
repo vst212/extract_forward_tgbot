@@ -74,7 +74,7 @@ def general_logic(update: Update, userid_str: str, line_center_content: str, med
     if persistent_webnote_url := config.path_dict.get(userid_str + "_psw"):
         all_stored = io4message.read(userid_str) + "\n\n" + io4urlmsg.read(userid_str)
         push2somewhere = config.push_dir + persistent_webnote_url
-        io4push.write(push2somewhere, all_stored)
+        io4push._write(push2somewhere, all_stored)
 
     return reply
 
@@ -397,7 +397,7 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
             io4push.append(netstr, all_stored)
             where2see = config.domain + netstr
         elif urlparse(config.push_dir).scheme in ('http', 'https'):   # 若是网址路径
-            io4push.write(push2somewhere, all_stored)
+            io4push.append(push2somewhere, all_stored)
             where2see = push2somewhere
         else:
             await context.bot.send_message(chat_id=config.chat_id, text="配置文件中，push_dir 填写有误")
@@ -408,7 +408,7 @@ async def push(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # 都没的话，就默认发到作者的网络记事本上
         push2somewhere = config.author_webnote + netstr
-        io4push.write(push2somewhere, all_stored)
+        io4push.append(push2somewhere, all_stored)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"push done. "
                                                                     f"please visit {push2somewhere}\n"
                                                                     f"推送完成，访问上面网址查看")

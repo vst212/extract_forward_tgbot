@@ -68,22 +68,22 @@ class WebnoteReadWrite:
             old = textarea.text
         return old
 
-    def write(self, url, content):
+    def _write(self, url, content):
         """把数据提交上去"""
         data = {"text": content}
         requests.post(url, data=data, verify=False)
 
-    def write_behind(self, url, content):
+    def append(self, url, content):
         """把数据提交上去"""
         old = self.read(url)
         old += content
-        self.write(url, old)
+        self._write(url, old)
 
     def write_in_front(self, url, content):
         """把文本添加到 webnote 里，添加在开头，先读取，再提交"""
         old = self.read(url)
         content += old
-        self.write(url, content)
+        self._write(url, content)
 
 
 class AbstractReadWrite(ABC):
